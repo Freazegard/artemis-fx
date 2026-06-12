@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Artemis FX — effects tool</title>
+<style>
+  :root { --paper:#E7E7DC; --ink:#0B3B2E; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Helvetica, Arial, sans-serif; background:#161614; color:#e8e6df; }
+  header { padding:12px 20px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; background:#1c1c1a; border-bottom:1px solid #2a2a27; }
+  h1 { font-size:15px; margin:0 10px 0 0; font-weight:600; letter-spacing:.04em; }
+  .fx { display:flex; gap:6px; flex-wrap:wrap; }
+  .fx button { background:#262623; color:#cfcdc4; border:1px solid #34342f; padding:6px 11px; border-radius:7px; cursor:pointer; font-size:12px; }
+  .fx button.on { background:var(--paper); color:#1c1c1a; border-color:var(--paper); font-weight:600; }
+  .ctl { display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:10px 20px; background:#191917; border-bottom:1px solid #2a2a27; }
+  .ctl label { font-size:11.5px; color:#9b9990; display:flex; align-items:center; gap:7px; }
+  .ctl input[type=range]{ width:110px; }
+  .ctl input[type=color]{ width:30px; height:24px; border:none; background:none; padding:0; cursor:pointer; }
+  .ctl .btn { background:var(--paper); color:#1c1c1a; border:none; padding:8px 16px; border-radius:7px; font-weight:600; cursor:pointer; font-size:12.5px; }
+  .ctl .btn.ghost { background:#262623; color:#cfcdc4; border:1px solid #34342f; }
+  main { display:flex; align-items:center; justify-content:center; padding:24px; min-height: calc(100vh - 140px); }
+  #drop { border:1.5px dashed #45453f; border-radius:14px; padding:60px 80px; text-align:center; color:#8a887f; font-size:14px; cursor:pointer; }
+  #preview { max-width: 92vw; max-height: 76vh; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.5); display:none; }
+  #meta { position:fixed; bottom:10px; right:16px; font-size:11px; color:#777; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ARTEMIS FX</h1>
+  <div class="fx" id="fxbar">
+    <button data-fx="hlines" class="on">Horizontal lines</button>
+    <button data-fx="vlines">Vertical lines</button>
+    <button data-fx="rings">Rings</button>
+    <button data-fx="dots">Halftone dots</button>
+    <button data-fx="rayas">Inverted stripes</button>
+    <button data-fx="hatch">Diagonal hatch</button>
+    <button data-fx="bayer">Bayer pixels</button>
+    <button data-fx="ascii">ASCII</button>
+    <button data-fx="stretch">Stretched columns</button>
+    <button data-fx="bars">Color bars</button>
+  </div>
+</header>
+<div class="ctl">
+  <input type="file" id="file" accept="image/*" style="display:none">
+  <button class="btn ghost" id="changeimg">Change image</button>
+  <label>Scale <input type="range" id="spacing" min="3" max="40" step="1" value="8"><span id="spacingV">8</span></label>
+  <label>Contrast <input type="range" id="gain" min="0.4" max="2.5" step="0.05" value="1.15"><span id="gainV">1.15</span></label>
+  <label>Ink <input type="color" id="ink" value="#0B3B2E"></label>
+  <label>Paper <input type="color" id="bg" value="#E7E7DC"></label>
+  <label><input type="checkbox" id="invert"> Invert</label>
+  <label><input type="checkbox" id="origcolor" checked> Original color</label>
+  <button class="btn ghost" id="reset">Reset</button>
+  <button class="btn" id="export">Export JPG (original size)</button>
+</div>
+<main>
+  <div id="drop">Drag an image here<br>or click "Change image" above</div>
+  <canvas id="preview"></canvas>
+</main>
+<div id="meta"></div>
+<canvas id="work" style="display:none"></canvas>
+
+<script>
+let img = null, fx = 'hlines';
+const work = document.getElementById('work');
+const preview = document.getElementById('preview');
+const meta = document.getElementById('meta');
+const $ = id => document.getElementById(id);
+const BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+const RAMP = ['·',':','-','=','+','*','#','%','@'];
+
+function hex2rgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+
+function showPreview(W){
+  const scale = Math.min(1, 1400/W);
+  preview.width = Math.round(work.width*scale); preview.height = Math.round(work.height*scale);
+  preview.getContext('2d').drawImage(work, 0, 0, preview.width, preview.height);
+  preview.style.display = 'block';
+  $('drop').style.display = 'none';
+  meta.textContent = work.width + ' × ' + work.height + ' px · exports at original size';
+}
+
+function render(){
+  if(!img) return;
+  const W = img.naturalWidth, H = img.naturalHeight;
+  work.width = W; work.height = H;
+  const ctx = work.getContext('2d', { willReadFrequently:true });
+  ctx.drawImage(img, 0, 0, W, H);
+  const src = ctx.getImageData(0,0,W,H);
+  const d = src.data;
+  const s = +$('spacing').value;
+  const gain = +$('gain').value;
+  const inv = $('invert').checked;
+  const useOrig = $('origcolor').checked;
+  const ink = hex2rgb($('ink').value);
+  const bg  = hex2rgb($('bg').value);
+
+  function darkAt(i){
+    let lum = (0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]) / 255;
+    if(inv) lum = 1 - lum;
+    return Math.pow(1 - lum, gain);
+  }
+
+  if(fx === 'ascii'){
+    ctx.fillStyle = $('bg').value; ctx.fillRect(0,0,W,H);
+    const cw = Math.max(4, Math.round(s*1.1));
+    const chh = Math.max(6, Math.round(s*1.9));
+    ctx.font = Math.round(s*1.8) + 'px "Courier New", monospace';
+    ctx.textBaseline = 'top';
+    const inkCss = $('ink').value;
+    for(let y=0; y<H; y+=chh){
+      for(let x=0; x<W; x+=cw){
+        const sx = Math.min(W-1, x + (cw>>1)), sy = Math.min(H-1, y + (chh>>1));
+        const i = (sy*W + sx)*4;
+        const dark = darkAt(i);
+        const idx = Math.min(RAMP.length-1, Math.floor(dark * RAMP.length));
+        if(dark < 0.08) continue;
+        ctx.fillStyle = useOrig ? `rgb(${d[i]},${d[i+1]},${d[i+2]})` : inkCss;
+        ctx.fillText(RAMP[idx], x, y);
+      }
+    }
+    showPreview(W); return;
+  }
+
+  const out = ctx.createImageData(W,H);
+  const o = out.data;
+
+  if(fx === 'stretch'){
+    const bandW = Math.max(4, s*2);
+    const win = s*10;
+    const nb = Math.ceil(W/bandW);
+    for(let b=0; b<nb; b++){
+      const x0 = b*bandW, x1 = Math.min(W, x0+bandW);
+      let colX = Math.min(W-1, x0 + (bandW>>1) + ((b%2) ? (bandW>>1) : 0));
+      const pr = new Float64Array(H+1), pg = new Float64Array(H+1), pb = new Float64Array(H+1);
+      for(let y=0; y<H; y++){
+        const i = (y*W + colX)*4;
+        pr[y+1]=pr[y]+d[i]; pg[y+1]=pg[y]+d[i+1]; pb[y+1]=pb[y]+d[i+2];
+      }
+      for(let y=0; y<H; y++){
+        const y0 = Math.max(0, y-win), y1 = Math.min(H-1, y+win);
+        const n = y1 - y0 + 1;
+        const r = (pr[y1+1]-pr[y0])/n, g = (pg[y1+1]-pg[y0])/n, bl = (pb[y1+1]-pb[y0])/n;
+        for(let x=x0; x<x1; x++){
+          const j = (y*W + x)*4;
+          o[j]=r; o[j+1]=g; o[j+2]=bl; o[j+3]=255;
+        }
+      }
+    }
+    ctx.putImageData(out, 0, 0); showPreview(W); return;
+  }
+
+  const cx = W/2, cy = H/2, ar = W/H;
+  const SQ2 = Math.SQRT1_2;
+  for(let y=0; y<H; y++){
+    for(let x=0; x<W; x++){
+      const i = (y*W + x)*4;
+      const dark = darkAt(i);
+      let isInk = false;
+
+      if(fx === 'hlines'){
+        const t = Math.abs(((y % s) / s) - 0.5) * 2;
+        isInk = t < dark * 0.92;
+      } else if(fx === 'vlines'){
+        const t = Math.abs(((x % s) / s) - 0.5) * 2;
+        isInk = t < dark * 0.92;
+      } else if(fx === 'rings'){
+        const de = Math.sqrt((x-cx)*(x-cx) + (y-cy)*ar*(y-cy)*ar);
+        const t = Math.abs(((de % s) / s) - 0.5) * 2;
+        isInk = t < dark * 0.92;
+      } else if(fx === 'dots'){
+        const u = (x + y) * SQ2, v = (x - y) * SQ2;
+        let cu = ((u % s) + s) % s - s/2;
+        let cv = ((v % s) + s) % s - s/2;
+        const r = Math.sqrt(cu*cu + cv*cv);
+        isInk = r < dark * s * 0.62;
+      } else if(fx === 'rayas'){
+        isInk = ((x % (2*s)) < s);
+        if(dark > 0.45) isInk = !isInk;
+        if(dark > 0.82) isInk = isInk && ((y % (2*s)) < s*1.3);
+      } else if(fx === 'hatch'){
+        const m = s*1.6;
+        const u1 = (((x+y) % m) + m) % m, u2 = (((x-y) % m) + m) % m;
+        const t1 = Math.abs(u1/m - 0.5)*2, t2 = Math.abs(u2/m - 0.5)*2;
+        isInk = t1 < dark*0.85;
+        if(!isInk && dark > 0.5) isInk = t2 < (dark-0.5)*1.6;
+      } else if(fx === 'bayer'){
+        const th = (BAYER[Math.floor(y/s)%4][Math.floor(x/s)%4] + 0.5) / 16;
+        isInk = dark > th;
+      } else if(fx === 'bars'){
+        const colW = s * 2, rowH = s * 5;
+        const sx = Math.min(W-1, Math.floor(x/colW)*colW + colW/2);
+        const sy = Math.min(H-1, Math.floor(y/rowH)*rowH + rowH/2);
+        const si = (Math.floor(sy)*W + Math.floor(sx))*4;
+        const gap = (x % colW) < Math.max(1, s*0.25);
+        const f = gap ? 0.55 : 1;
+        o[i] = d[si]*f; o[i+1] = d[si+1]*f; o[i+2] = d[si+2]*f; o[i+3] = 255;
+        continue;
+      }
+
+      if(isInk){
+        if(useOrig){ o[i]=d[i]; o[i+1]=d[i+1]; o[i+2]=d[i+2]; }
+        else { o[i]=ink[0]; o[i+1]=ink[1]; o[i+2]=ink[2]; }
+      } else { o[i]=bg[0]; o[i+1]=bg[1]; o[i+2]=bg[2]; }
+      o[i+3] = 255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  showPreview(W);
+}
+
+let raf = null;
+function queue(){ if(raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(render); }
+
+function loadFile(f){
+  if(!f || !f.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(f);
+  const im = new Image();
+  im.onload = () => { img = im; queue(); };
+  im.src = url;
+}
+
+$('file').addEventListener('change', e => loadFile(e.target.files[0]));
+$('changeimg').addEventListener('click', () => $('file').click());
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', e => { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+$('drop').addEventListener('click', () => $('file').click());
+
+document.getElementById('fxbar').addEventListener('click', e => {
+  if(e.target.dataset.fx){
+    fx = e.target.dataset.fx;
+    document.querySelectorAll('#fxbar button').forEach(b => b.classList.toggle('on', b===e.target));
+    queue();
+  }
+});
+['spacing','gain','invert','origcolor','ink','bg'].forEach(id => $(id).addEventListener('input', () => {
+  $('spacingV').textContent = $('spacing').value;
+  $('gainV').textContent = (+$('gain').value).toFixed(2);
+  queue();
+}));
+$('reset').addEventListener('click', () => {
+  $('spacing').value=8; $('gain').value=1.15; $('invert').checked=false; $('origcolor').checked=true;
+  $('ink').value='#0B3B2E'; $('bg').value='#E7E7DC';
+  $('spacingV').textContent='8'; $('gainV').textContent='1.15';
+  queue();
+});
+$('export').addEventListener('click', () => {
+  if(!img) return;
+  const a = document.createElement('a');
+  a.download = 'artemis-fx-' + fx + '.jpg';
+  a.href = work.toDataURL('image/jpeg', 0.95);
+  a.click();
+});
+</script>
+</body>
+</html>
