@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Artemis Vintage — photo grading tool</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Helvetica, Arial, sans-serif; background:#161614; color:#e8e6df; }
+  header { padding:12px 20px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; background:#1c1c1a; border-bottom:1px solid #2a2a27; }
+  h1 { font-size:15px; margin:0 10px 0 0; font-weight:600; letter-spacing:.04em; }
+  .fx { display:flex; gap:6px; flex-wrap:wrap; }
+  .fx button { background:#262623; color:#cfcdc4; border:1px solid #34342f; padding:6px 12px; border-radius:7px; cursor:pointer; font-size:12px; }
+  .fx button.on { background:#d8c9a0; color:#1c1c1a; border-color:#d8c9a0; font-weight:600; }
+  .ctl { display:flex; gap:18px; align-items:center; flex-wrap:wrap; padding:10px 20px; background:#191917; border-bottom:1px solid #2a2a27; }
+  .ctl label { font-size:11.5px; color:#9b9990; display:flex; align-items:center; gap:7px; }
+  .ctl input[type=range]{ width:92px; }
+  .ctl .btn { background:#d8c9a0; color:#1c1c1a; border:none; padding:8px 16px; border-radius:7px; font-weight:600; cursor:pointer; font-size:12.5px; }
+  .ctl .btn.ghost { background:#262623; color:#cfcdc4; border:1px solid #34342f; }
+  .ctl .num { color:#cfcdc4; min-width:30px; display:inline-block; text-align:right; }
+  main { display:flex; align-items:center; justify-content:center; padding:24px; min-height: calc(100vh - 150px); }
+  #drop { border:1.5px dashed #45453f; border-radius:14px; padding:60px 80px; text-align:center; color:#8a887f; font-size:14px; cursor:pointer; }
+  #preview { max-width: 92vw; max-height: 74vh; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.5); display:none; }
+  #meta { position:fixed; bottom:10px; right:16px; font-size:11px; color:#777; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ARTEMIS VINTAGE</h1>
+  <div class="fx" id="presets">
+    <button data-p="original" class="on">Original</button>
+    <button data-p="poolsuite">Poolsuite</button>
+    <button data-p="faded">Faded film</button>
+    <button data-p="sunbleached">Sun-bleached</button>
+    <button data-p="riviera">Riviera</button>
+    <button data-p="golden">Golden hour</button>
+    <button data-p="magazine">Magazine print</button>
+    <button data-p="kodachrome">Kodachrome</button>
+  </div>
+</header>
+<div class="ctl">
+  <input type="file" id="file" accept="image/*" style="display:none">
+  <button class="btn ghost" id="changeimg">Change image</button>
+  <label>Exposure <input type="range" id="exposure" min="0.5" max="1.6" step="0.01" value="1"><span class="num" id="exposureV">1.00</span></label>
+  <label>Contrast <input type="range" id="contrast" min="0.5" max="1.6" step="0.01" value="1"><span class="num" id="contrastV">1.00</span></label>
+  <label>Saturation <input type="range" id="sat" min="0" max="2" step="0.01" value="1"><span class="num" id="satV">1.00</span></label>
+  <label>Warmth <input type="range" id="warmth" min="-0.15" max="0.15" step="0.005" value="0"><span class="num" id="warmthV">0.00</span></label>
+  <label>Fade <input type="range" id="fade" min="0" max="0.45" step="0.01" value="0"><span class="num" id="fadeV">0.00</span></label>
+  <label>Cream <input type="range" id="cream" min="0" max="0.55" step="0.01" value="0"><span class="num" id="creamV">0.00</span></label>
+  <label>Tone <input type="range" id="tone" min="0" max="1.6" step="0.05" value="1"><span class="num" id="toneV">1.00</span></label>
+  <label>Vignette <input type="range" id="vignette" min="0" max="0.7" step="0.01" value="0"><span class="num" id="vignetteV">0.00</span></label>
+  <label>Grain <input type="range" id="grain" min="0" max="0.4" step="0.01" value="0"><span class="num" id="grainV">0.00</span></label>
+  <button class="btn ghost" id="reset">Reset</button>
+  <button class="btn" id="export">Export JPG (original size)</button>
+</div>
+<main>
+  <div id="drop">Drag an image here<br>or click "Change image" above</div>
+  <canvas id="preview"></canvas>
+</main>
+<div id="meta"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEYS = ['exposure','contrast','sat','warmth','fade','cream','tone','vignette','grain'];
+// sh = shadow tint (signed rgb), hl = highlight tint (signed rgb) — the film "stock" character
+const PRESETS = {
+  original:    {exposure:1.00, contrast:1.00, sat:1.00, warmth:0.00, fade:0.00, cream:0.00, tone:1.0, vignette:0.00, grain:0.00, sh:[0,0,0], hl:[0,0,0]},
+  poolsuite:   {exposure:1.04, contrast:1.10, sat:1.28, warmth:0.04, fade:0.08, cream:0.12, tone:1.0, vignette:0.16, grain:0.05, sh:[0.00,0.012,0.034], hl:[0.055,0.030,-0.022]},
+  faded:       {exposure:1.05, contrast:0.88, sat:0.80, warmth:0.05, fade:0.26, cream:0.20, tone:1.1, vignette:0.10, grain:0.10, sh:[-0.012,0.020,0.052], hl:[0.052,0.032,-0.030]},
+  sunbleached: {exposure:1.15, contrast:0.84, sat:0.88, warmth:0.07, fade:0.30, cream:0.24, tone:1.0, vignette:0.06, grain:0.08, sh:[0.032,0.022,0.000], hl:[0.062,0.040,-0.022]},
+  riviera:     {exposure:1.00, contrast:1.18, sat:1.42, warmth:0.03, fade:0.05, cream:0.08, tone:1.2, vignette:0.22, grain:0.04, sh:[-0.022,0.000,0.052], hl:[0.062,0.030,-0.044]},
+  golden:      {exposure:1.05, contrast:1.06, sat:1.24, warmth:0.10, fade:0.10, cream:0.30, tone:1.1, vignette:0.18, grain:0.05, sh:[0.040,0.020,-0.012], hl:[0.082,0.044,-0.044]},
+  magazine:    {exposure:1.00, contrast:0.94, sat:1.06, warmth:0.04, fade:0.16, cream:0.16, tone:0.9, vignette:0.12, grain:0.14, sh:[0.020,0.020,0.020], hl:[0.040,0.030,-0.010]},
+  kodachrome:  {exposure:1.02, contrast:1.16, sat:1.30, warmth:0.06, fade:0.06, cream:0.10, tone:1.1, vignette:0.20, grain:0.06, sh:[0.014,0.006,-0.018], hl:[0.050,0.028,-0.040]},
+};
+
+let img = null;
+let fullCanvas = document.createElement('canvas');
+let prevCanvas = document.createElement('canvas');
+let fullData = null, prevData = null;
+let curTone = {sh:[0,0,0], hl:[0,0,0]};
+const preview = $('preview');
+const clamp01 = v => v<0?0:(v>1?1:v);
+
+function smooth(e0,e1,x){ let t=(x-e0)/(e1-e0); t=t<0?0:(t>1?1:t); return t*t*(3-2*t); }
+function contrastCurve(v,c){
+  let x = (v-0.5)*c + 0.5;
+  x = clamp01(x);
+  const s = x*x*(3-2*x);
+  const w = Math.max(0, Math.min(0.55, (c-1)));
+  return x*(1-w) + s*w;
+}
+function rolloff(v){
+  if(v<=0.82) return v<0?0:v;
+  const x = v-0.82;
+  return 0.82 + 0.18*(x/(x+0.18));
+}
+
+function params(){ const p={}; KEYS.forEach(k=>p[k]=+$(k).value); return p; }
+
+function grade(src, w, h, p, tone){
+  const out = new Uint8ClampedArray(src.length);
+  const cx=w/2, cy=h/2, maxD=Math.sqrt(cx*cx+cy*cy);
+  const liftR=0.46, liftG=0.44, liftB=0.40;
+  const creamR=1.0, creamG=0.92, creamB=0.78;
+  const ts = tone.sh, th = tone.hl, tstr = p.tone;
+  for(let y=0; y<h; y++){
+    for(let x=0; x<w; x++){
+      const i=(y*w+x)*4;
+      let r=src[i]/255, g=src[i+1]/255, b=src[i+2]/255;
+      // exposure
+      r*=p.exposure; g*=p.exposure; b*=p.exposure;
+      // temperature
+      r+=p.warmth; b-=p.warmth; g+=p.warmth*0.12;
+      // filmic contrast
+      r=contrastCurve(r,p.contrast); g=contrastCurve(g,p.contrast); b=contrastCurve(b,p.contrast);
+      // saturation (protect bright highlights from over-saturating)
+      let lum=0.299*r+0.587*g+0.114*b;
+      const satL = 1 + (p.sat-1)*(1 - 0.45*smooth(0.72,1.0,lum));
+      r=lum+(r-lum)*satL; g=lum+(g-lum)*satL; b=lum+(b-lum)*satL;
+      // split tone
+      if(tstr>0){
+        const sw=1-smooth(0.0,0.5,lum), hw=smooth(0.5,1.0,lum);
+        r+=(ts[0]*sw+th[0]*hw)*tstr; g+=(ts[1]*sw+th[1]*hw)*tstr; b+=(ts[2]*sw+th[2]*hw)*tstr;
+      }
+      // fade (lift blacks toward warm milky)
+      if(p.fade>0){ const f=p.fade; r=r*(1-f)+f*liftR; g=g*(1-f)+f*liftG; b=b*(1-f)+f*liftB; }
+      // cream highlight warmth
+      if(p.cream>0){ const hw=smooth(0.45,1.0,lum); const a=p.cream*hw; r+=a*(creamR-r); g+=a*(creamG-g); b+=a*(creamB-b); }
+      // highlight rolloff
+      r=rolloff(r); g=rolloff(g); b=rolloff(b);
+      // vignette
+      if(p.vignette>0){ const dx=x-cx,dy=y-cy; const d=Math.sqrt(dx*dx+dy*dy)/maxD; const v=1-p.vignette*d*d; r*=v; g*=v; b*=v; }
+      // grain (luminance, strongest in mids)
+      if(p.grain>0){ const gm=1-Math.abs(lum-0.5)*1.3; const n=(Math.random()-0.5)*p.grain*(gm<0?0:gm); r+=n; g+=n; b+=n; }
+      out[i]=r*255; out[i+1]=g*255; out[i+2]=b*255; out[i+3]=255;
+    }
+  }
+  return out;
+}
+
+function renderPreview(){
+  if(!prevData) return;
+  const w=prevCanvas.width, h=prevCanvas.height;
+  const g=grade(prevData.data, w, h, params(), curTone);
+  preview.width=w; preview.height=h;
+  preview.getContext('2d').putImageData(new ImageData(g,w,h),0,0);
+  preview.style.display='block'; $('drop').style.display='none';
+}
+let raf=null; function queue(){ if(raf) cancelAnimationFrame(raf); raf=requestAnimationFrame(renderPreview); }
+
+function loadImage(im){
+  img=im;
+  const W=im.naturalWidth, H=im.naturalHeight;
+  fullCanvas.width=W; fullCanvas.height=H;
+  const fctx=fullCanvas.getContext('2d',{willReadFrequently:true});
+  fctx.drawImage(im,0,0); fullData=fctx.getImageData(0,0,W,H);
+  const scale=Math.min(1,1500/W);
+  const pw=Math.round(W*scale), ph=Math.round(H*scale);
+  prevCanvas.width=pw; prevCanvas.height=ph;
+  const pctx=prevCanvas.getContext('2d',{willReadFrequently:true});
+  pctx.drawImage(im,0,0,pw,ph); prevData=pctx.getImageData(0,0,pw,ph);
+  $('meta').textContent=W+' × '+H+' px · exports at original size';
+  queue();
+}
+function loadFile(f){ if(!f||!f.type.startsWith('image/'))return; const im=new Image(); im.onload=()=>loadImage(im); im.src=URL.createObjectURL(f); }
+
+function setNum(k,v){ $(k+'V').textContent=(k==='warmth'?(v>=0?'+':'')+v.toFixed(2):v.toFixed(2)); }
+function applyPreset(name){
+  const p=PRESETS[name]; if(!p) return;
+  KEYS.forEach(k=>{ $(k).value=p[k]; setNum(k,p[k]); });
+  curTone={sh:p.sh.slice(), hl:p.hl.slice()};
+  queue();
+}
+
+$('file').addEventListener('change', e=>loadFile(e.target.files[0]));
+$('changeimg').addEventListener('click', ()=>$('file').click());
+$('drop').addEventListener('click', ()=>$('file').click());
+document.body.addEventListener('dragover', e=>e.preventDefault());
+document.body.addEventListener('drop', e=>{ e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+$('presets').addEventListener('click', e=>{
+  if(e.target.dataset.p){
+    document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('on',b===e.target));
+    applyPreset(e.target.dataset.p);
+  }
+});
+KEYS.forEach(k=>$(k).addEventListener('input', ()=>{ setNum(k,+$(k).value); queue(); }));
+$('reset').addEventListener('click', ()=>{
+  document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('on',b.dataset.p==='original'));
+  applyPreset('original');
+});
+$('export').addEventListener('click', ()=>{
+  if(!fullData) return;
+  const W=fullCanvas.width, H=fullCanvas.height;
+  const g=grade(fullData.data, W, H, params(), curTone);
+  const out=document.createElement('canvas'); out.width=W; out.height=H;
+  out.getContext('2d').putImageData(new ImageData(g,W,H),0,0);
+  const a=document.createElement('a'); a.download='artemis-vintage.jpg'; a.href=out.toDataURL('image/jpeg',0.95); a.click();
+});
+</script>
+</body>
+</html>
