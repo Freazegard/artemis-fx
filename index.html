@@ -50,7 +50,8 @@
   <label><input type="checkbox" id="invert"> Invert</label>
   <label><input type="checkbox" id="origcolor" checked> Original color</label>
   <button class="btn ghost" id="reset">Reset</button>
-  <button class="btn" id="export">Export PNG (original size)</button>
+  <button class="btn" id="exportpng">Export PNG</button>
+  <button class="btn" id="exportjpg">Export JPG</button>
 </div>
 <main>
   <div id="drop">Drag an image here<br>or click "Change image" above</div>
@@ -244,11 +245,22 @@ $('reset').addEventListener('click', () => {
   $('spacingV').textContent='8'; $('gainV').textContent='1.15';
   queue();
 });
-$('export').addEventListener('click', () => {
+$('exportpng').addEventListener('click', () => {
   if(!img) return;
   const a = document.createElement('a');
   a.download = 'artemis-fx-' + fx + '.png';
   a.href = work.toDataURL('image/png');
+  a.click();
+});
+$('exportjpg').addEventListener('click', () => {
+  if(!img) return;
+  const c = document.createElement('canvas'); c.width = work.width; c.height = work.height;
+  const cx = c.getContext('2d');
+  cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, c.width, c.height);
+  cx.drawImage(work, 0, 0);
+  const a = document.createElement('a');
+  a.download = 'artemis-fx-' + fx + '.jpg';
+  a.href = c.toDataURL('image/jpeg', 0.95);
   a.click();
 });
 </script>
