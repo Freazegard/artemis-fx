@@ -191,13 +191,21 @@ $('reset').addEventListener('click', ()=>{
   document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('on',b.dataset.p==='original'));
   applyPreset('original');
 });
+function downloadBlob(blob, name){
+  if(!blob){ alert('Export failed — try a smaller image.'); return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.download = name; a.href = url;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 $('exportpng').addEventListener('click', ()=>{
   if(!fullData) return;
   const W=fullCanvas.width, H=fullCanvas.height;
   const g=grade(fullData.data, W, H, params(), curTone);
   const out=document.createElement('canvas'); out.width=W; out.height=H;
   out.getContext('2d').putImageData(new ImageData(g,W,H),0,0);
-  const a=document.createElement('a'); a.download='artemis-vintage.png'; a.href=out.toDataURL('image/png'); a.click();
+  out.toBlob(b => downloadBlob(b, 'artemis-vintage.png'), 'image/png');
 });
 $('exportjpg').addEventListener('click', ()=>{
   if(!fullData) return;
@@ -209,7 +217,7 @@ $('exportjpg').addEventListener('click', ()=>{
   const tmp=document.createElement('canvas'); tmp.width=W; tmp.height=H;
   tmp.getContext('2d').putImageData(new ImageData(g,W,H),0,0);
   octx.drawImage(tmp,0,0);
-  const a=document.createElement('a'); a.download='artemis-vintage.jpg'; a.href=out.toDataURL('image/jpeg',0.95); a.click();
+  out.toBlob(b => downloadBlob(b, 'artemis-vintage.jpg'), 'image/jpeg', 0.95);
 });
 </script>
 </body>

@@ -245,12 +245,17 @@ $('reset').addEventListener('click', () => {
   $('spacingV').textContent='8'; $('gainV').textContent='1.15';
   queue();
 });
+function downloadBlob(blob, name){
+  if(!blob){ alert('Export failed — try a smaller image.'); return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.download = name; a.href = url;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 $('exportpng').addEventListener('click', () => {
   if(!img) return;
-  const a = document.createElement('a');
-  a.download = 'artemis-fx-' + fx + '.png';
-  a.href = work.toDataURL('image/png');
-  a.click();
+  work.toBlob(b => downloadBlob(b, 'artemis-fx-' + fx + '.png'), 'image/png');
 });
 $('exportjpg').addEventListener('click', () => {
   if(!img) return;
@@ -258,10 +263,7 @@ $('exportjpg').addEventListener('click', () => {
   const cx = c.getContext('2d');
   cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, c.width, c.height);
   cx.drawImage(work, 0, 0);
-  const a = document.createElement('a');
-  a.download = 'artemis-fx-' + fx + '.jpg';
-  a.href = c.toDataURL('image/jpeg', 0.95);
-  a.click();
+  c.toBlob(b => downloadBlob(b, 'artemis-fx-' + fx + '.jpg'), 'image/jpeg', 0.95);
 });
 </script>
 </body>
