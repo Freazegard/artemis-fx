@@ -20,7 +20,7 @@
   .ctl .btn.ghost { background:#262623; color:#cfcdc4; border:1px solid #34342f; }
   main { display:flex; align-items:center; justify-content:center; padding:24px; min-height: calc(100vh - 140px); }
   #drop { border:1.5px dashed #45453f; border-radius:14px; padding:60px 80px; text-align:center; color:#8a887f; font-size:14px; cursor:pointer; }
-  #preview { max-width: 92vw; max-height: 76vh; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.5); display:none; }
+  #preview { max-width: 92vw; max-height: 76vh; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.5); display:none; background-color:#fff; background-image:linear-gradient(45deg,#dcdcd6 25%,transparent 25%),linear-gradient(-45deg,#dcdcd6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#dcdcd6 75%),linear-gradient(-45deg,transparent 75%,#dcdcd6 75%); background-size:18px 18px; background-position:0 0,0 9px,9px -9px,-9px 0; }
   #meta { position:fixed; bottom:10px; right:16px; font-size:11px; color:#777; }
 </style>
 </head>
@@ -84,7 +84,7 @@ function render(){
   const W = img.naturalWidth, H = img.naturalHeight;
   work.width = W; work.height = H;
   const ctx = work.getContext('2d', { willReadFrequently:true });
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  ctx.clearRect(0, 0, W, H);
   ctx.drawImage(img, 0, 0, W, H);
   const src = ctx.getImageData(0,0,W,H);
   const d = src.data;
@@ -143,7 +143,7 @@ function render(){
         const r = (pr[y1+1]-pr[y0])/n, g = (pg[y1+1]-pg[y0])/n, bl = (pb[y1+1]-pb[y0])/n;
         for(let x=x0; x<x1; x++){
           const j = (y*W + x)*4;
-          o[j]=r; o[j+1]=g; o[j+2]=bl; o[j+3]=255;
+          o[j]=r; o[j+1]=g; o[j+2]=bl; o[j+3]=d[j+3];
         }
       }
     }
@@ -194,7 +194,7 @@ function render(){
         const si = (Math.floor(sy)*W + Math.floor(sx))*4;
         const gap = (x % colW) < Math.max(1, s*0.25);
         const f = gap ? 0.55 : 1;
-        o[i] = d[si]*f; o[i+1] = d[si+1]*f; o[i+2] = d[si+2]*f; o[i+3] = 255;
+        o[i] = d[si]*f; o[i+1] = d[si+1]*f; o[i+2] = d[si+2]*f; o[i+3] = d[i+3];
         continue;
       }
 
@@ -202,7 +202,7 @@ function render(){
         if(useOrig){ o[i]=d[i]; o[i+1]=d[i+1]; o[i+2]=d[i+2]; }
         else { o[i]=ink[0]; o[i+1]=ink[1]; o[i+2]=ink[2]; }
       } else { o[i]=bg[0]; o[i+1]=bg[1]; o[i+2]=bg[2]; }
-      o[i+3] = 255;
+      o[i+3] = d[i+3];
     }
   }
   ctx.putImageData(out, 0, 0);

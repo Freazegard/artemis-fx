@@ -19,7 +19,7 @@
   .ctl .num { color:#cfcdc4; min-width:30px; display:inline-block; text-align:right; }
   main { display:flex; align-items:center; justify-content:center; padding:24px; min-height: calc(100vh - 150px); }
   #drop { border:1.5px dashed #45453f; border-radius:14px; padding:60px 80px; text-align:center; color:#8a887f; font-size:14px; cursor:pointer; }
-  #preview { max-width: 92vw; max-height: 74vh; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.5); display:none; }
+  #preview { max-width: 92vw; max-height: 74vh; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,.5); display:none; background-color:#fff; background-image:linear-gradient(45deg,#dcdcd6 25%,transparent 25%),linear-gradient(-45deg,#dcdcd6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#dcdcd6 75%),linear-gradient(-45deg,transparent 75%,#dcdcd6 75%); background-size:18px 18px; background-position:0 0,0 9px,9px -9px,-9px 0; }
   #meta { position:fixed; bottom:10px; right:16px; font-size:11px; color:#777; }
 </style>
 </head>
@@ -132,7 +132,7 @@ function grade(src, w, h, p, tone){
       if(p.vignette>0){ const dx=x-cx,dy=y-cy; const d=Math.sqrt(dx*dx+dy*dy)/maxD; const v=1-p.vignette*d*d; r*=v; g*=v; b*=v; }
       // grain (luminance, strongest in mids)
       if(p.grain>0){ const gm=1-Math.abs(lum-0.5)*1.3; const n=(Math.random()-0.5)*p.grain*(gm<0?0:gm); r+=n; g+=n; b+=n; }
-      out[i]=r*255; out[i+1]=g*255; out[i+2]=b*255; out[i+3]=255;
+      out[i]=r*255; out[i+1]=g*255; out[i+2]=b*255; out[i+3]=src[i+3];
     }
   }
   return out;
@@ -153,13 +153,13 @@ function loadImage(im){
   const W=im.naturalWidth, H=im.naturalHeight;
   fullCanvas.width=W; fullCanvas.height=H;
   const fctx=fullCanvas.getContext('2d',{willReadFrequently:true});
-  fctx.fillStyle='#ffffff'; fctx.fillRect(0,0,W,H);
+  fctx.clearRect(0,0,W,H);
   fctx.drawImage(im,0,0); fullData=fctx.getImageData(0,0,W,H);
   const scale=Math.min(1,1500/W);
   const pw=Math.round(W*scale), ph=Math.round(H*scale);
   prevCanvas.width=pw; prevCanvas.height=ph;
   const pctx=prevCanvas.getContext('2d',{willReadFrequently:true});
-  pctx.fillStyle='#ffffff'; pctx.fillRect(0,0,pw,ph);
+  pctx.clearRect(0,0,pw,ph);
   pctx.drawImage(im,0,0,pw,ph); prevData=pctx.getImageData(0,0,pw,ph);
   $('meta').textContent=W+' × '+H+' px · exports at original size';
   queue();
