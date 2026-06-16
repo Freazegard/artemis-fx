@@ -50,7 +50,7 @@
   <label><input type="checkbox" id="invert"> Invert</label>
   <label><input type="checkbox" id="origcolor" checked> Original color</label>
   <button class="btn ghost" id="reset">Reset</button>
-  <button class="btn" id="export">Export JPG (original size)</button>
+  <button class="btn" id="export">Export PNG (original size)</button>
 </div>
 <main>
   <div id="drop">Drag an image here<br>or click "Change image" above</div>
@@ -84,6 +84,7 @@ function render(){
   const W = img.naturalWidth, H = img.naturalHeight;
   work.width = W; work.height = H;
   const ctx = work.getContext('2d', { willReadFrequently:true });
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
   ctx.drawImage(img, 0, 0, W, H);
   const src = ctx.getImageData(0,0,W,H);
   const d = src.data;
@@ -246,8 +247,8 @@ $('reset').addEventListener('click', () => {
 $('export').addEventListener('click', () => {
   if(!img) return;
   const a = document.createElement('a');
-  a.download = 'artemis-fx-' + fx + '.jpg';
-  a.href = work.toDataURL('image/jpeg', 0.95);
+  a.download = 'artemis-fx-' + fx + '.png';
+  a.href = work.toDataURL('image/png');
   a.click();
 });
 </script>

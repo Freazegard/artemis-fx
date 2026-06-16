@@ -50,7 +50,7 @@
   <label>Vignette <input type="range" id="vignette" min="0" max="0.7" step="0.01" value="0"><span class="num" id="vignetteV">0.00</span></label>
   <label>Grain <input type="range" id="grain" min="0" max="0.4" step="0.01" value="0"><span class="num" id="grainV">0.00</span></label>
   <button class="btn ghost" id="reset">Reset</button>
-  <button class="btn" id="export">Export JPG (original size)</button>
+  <button class="btn" id="export">Export PNG (original size)</button>
 </div>
 <main>
   <div id="drop">Drag an image here<br>or click "Change image" above</div>
@@ -153,11 +153,13 @@ function loadImage(im){
   const W=im.naturalWidth, H=im.naturalHeight;
   fullCanvas.width=W; fullCanvas.height=H;
   const fctx=fullCanvas.getContext('2d',{willReadFrequently:true});
+  fctx.fillStyle='#ffffff'; fctx.fillRect(0,0,W,H);
   fctx.drawImage(im,0,0); fullData=fctx.getImageData(0,0,W,H);
   const scale=Math.min(1,1500/W);
   const pw=Math.round(W*scale), ph=Math.round(H*scale);
   prevCanvas.width=pw; prevCanvas.height=ph;
   const pctx=prevCanvas.getContext('2d',{willReadFrequently:true});
+  pctx.fillStyle='#ffffff'; pctx.fillRect(0,0,pw,ph);
   pctx.drawImage(im,0,0,pw,ph); prevData=pctx.getImageData(0,0,pw,ph);
   $('meta').textContent=W+' × '+H+' px · exports at original size';
   queue();
@@ -194,7 +196,7 @@ $('export').addEventListener('click', ()=>{
   const g=grade(fullData.data, W, H, params(), curTone);
   const out=document.createElement('canvas'); out.width=W; out.height=H;
   out.getContext('2d').putImageData(new ImageData(g,W,H),0,0);
-  const a=document.createElement('a'); a.download='artemis-vintage.jpg'; a.href=out.toDataURL('image/jpeg',0.95); a.click();
+  const a=document.createElement('a'); a.download='artemis-vintage.png'; a.href=out.toDataURL('image/png'); a.click();
 });
 </script>
 </body>
